@@ -6,21 +6,18 @@
     <title>Credit Ledger App</title>
     <style>
         * { box-sizing: border-box; font-family: Arial, sans-serif; }
-        /* padding-bottom ensures the content isn't hidden behind the fixed bottom dashboard */
-        body { margin: 0; padding: 0; padding-bottom: 60px; display: flex; flex-direction: column; height: 100vh; background-color: #f4f4f9; overflow: hidden; }
+        body { margin: 0; padding: 0; padding-bottom: 65px; display: flex; flex-direction: column; height: 100vh; background-color: #f4f4f9; overflow: hidden; }
         
-        /* Main Layout Layout */
         #main-container { display: flex; flex: 1; overflow: hidden; }
         
-        /* Left Side: Vertical Timeline */
-        #timeline-area { width: 90px; background-color: #ecf0f1; border-right: 2px solid #bdc3c7; overflow-y: auto; display: flex; flex-direction: column; }
+        /* LEFT Side: Vertical Timeline */
+        #timeline-area { width: 95px; background-color: #ecf0f1; border-right: 2px solid #bdc3c7; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; }
         .date-btn { padding: 15px 5px; text-align: center; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 0.85em; transition: background 0.2s; }
-        .date-btn:hover, .date-btn.active { background-color: #3498db; color: white; font-weight: bold; }
+        .date-btn.active { background-color: #3498db; color: white; font-weight: bold; }
         
-        /* Right Side: Content & Entry */
+        /* RIGHT Side: Content & Entry */
         #content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Fixed Header Area inside Content */
         #sticky-header { padding: 15px; background: #fff; border-bottom: 2px solid #ddd; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         #sticky-header h2 { margin: 0 0 10px 0; font-size: 1.2em; color: #2c3e50; }
         
@@ -30,31 +27,35 @@
         
         /* Scrollable Item List */
         #item-list { list-style: none; padding: 10px; margin: 0; flex: 1; overflow-y: auto; }
-        #item-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 4px; }
-        .item-info { flex: 1; }
-        .item-actions { display: flex; gap: 5px; }
+        #item-list li { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 4px; }
+        
+        /* Inline Editable Inputs for Items */
+        .item-info { flex: 1; display: flex; flex-direction: column; gap: 5px; padding-right: 10px; }
+        .inline-input { border: none; border-bottom: 1px dashed #bdc3c7; font-size: 1em; padding: 2px; width: 100%; background: transparent; }
+        .inline-input:focus { outline: none; border-bottom: 2px solid #3498db; }
+        .inline-price { font-weight: bold; color: #2c3e50; }
+        
         .action-btn { background: none; border: none; font-size: 1.2em; cursor: pointer; padding: 5px; }
         
-        .daily-total-display { font-size: 1.1em; font-weight: bold; text-align: right; padding: 10px 15px; background: #ecf0f1; border-top: 1px solid #bdc3c7; }
-        
-        /* Bottom Dashboard (Compact) */
+        /* Bottom Dashboard (Compact & Editable) */
         #bottom-dashboard { position: fixed; bottom: 0; left: 0; width: 100%; background-color: #2c3e50; color: white; display: flex; justify-content: space-around; align-items: center; padding: 10px 5px; box-shadow: 0 -2px 10px rgba(0,0,0,0.2); z-index: 20; }
-        .balance-card { text-align: center; font-size: 0.75em; flex: 1; }
-        .balance-card span { display: block; font-size: 1.4em; font-weight: bold; margin-top: 2px; }
+        .balance-card { text-align: center; font-size: 0.75em; flex: 1; display: flex; flex-direction: column; align-items: center; }
         
-        /* Clickable styling for Amount Paid */
-        .clickable-amount { color: #f1c40f; text-decoration: underline; cursor: pointer; }
+        /* Dashboard Editable Inputs */
+        .dash-input-wrapper { display: flex; align-items: center; margin-top: 2px; }
+        .dash-input-wrapper span { font-size: 1.2em; font-weight: bold; margin-right: 2px; }
+        .dash-input { background: transparent; border: none; border-bottom: 1px dashed rgba(255,255,255,0.5); color: white; font-size: 1.3em; font-weight: bold; width: 70px; text-align: center; }
+        .dash-input:focus { outline: none; border-bottom: 2px solid #f1c40f; background: rgba(255,255,255,0.1); border-radius: 3px; }
     </style>
 </head>
 <body>
 
     <div id="main-container">
-        <div id="timeline-area">
-            </div>
+        <div id="timeline-area"></div>
 
         <div id="content-area">
             <div id="sticky-header">
-                <h2 id="selected-date-display">Select a Date</h2>
+                <h2 id="selected-date-display">Loading...</h2>
                 <div id="entry-area" style="display: none;">
                     <div class="input-group">
                         <input type="text" id="item-name" placeholder="Item name">
@@ -64,34 +65,44 @@
                 </div>
             </div>
 
-            <ul id="item-list">
-                </ul>
-
-            <div id="daily-total-container" style="display: none;" class="daily-total-display">
-                Daily Total: <span id="daily-total">₹0</span>
-            </div>
+            <ul id="item-list"></ul>
         </div>
     </div>
 
     <div id="bottom-dashboard">
-        <div class="balance-card">Payable<span id="total-payable">₹0</span></div>
-        <div class="balance-card">Paid (Tap to edit)<span id="amount-paid" class="clickable-amount" onclick="editTotalPaid()">₹0</span></div>
-        <div class="balance-card">Remaining<span id="remaining-balance">₹0</span></div>
+        <div class="balance-card">Payable
+            <div class="dash-input-wrapper">
+                <span>₹</span><input type="number" id="payable-input" class="dash-input" onchange="handleDashChange('payable')">
+            </div>
+        </div>
+        <div class="balance-card">Paid
+            <div class="dash-input-wrapper">
+                <span>₹</span><input type="number" id="paid-input" class="dash-input" onchange="handleDashChange('paid')">
+            </div>
+        </div>
+        <div class="balance-card">Remaining
+            <div class="dash-input-wrapper">
+                <span>₹</span><input type="number" id="remaining-input" class="dash-input" onchange="handleDashChange('remaining')">
+            </div>
+        </div>
     </div>
 
     <script>
-        // Database
         let ledgerData = {}; 
         let totalPaid = 0;
+        let settledAmount = 0; // Tracks past debts that were fully paid off
+        let manualPayable = null; 
         let activeDate = null;
+        let scrollTimer;
+        let isClicking = false;
 
-        // Initialize App
         window.onload = function() {
             generateTimeline(); 
+            setupEnterKey();
             updateDashboard();
         };
 
-        // Generate Dates (Past 1 year, Future 10 years)
+        // 1. Generate Timeline (Future to Past)
         function generateTimeline() {
             const timeline = document.getElementById("timeline-area");
             timeline.innerHTML = "";
@@ -100,8 +111,8 @@
             
             let todayId = "";
 
-            // Start from 365 days ago, go up to 3650 days (10 years) ahead
-            for (let i = -365; i <= 3650; i++) {
+            // 3650 days (10 yrs) future down to -365 days (1 yr) past
+            for (let i = 3650; i >= -365; i--) {
                 let d = new Date();
                 d.setDate(today.getDate() + i);
                 
@@ -112,157 +123,187 @@
                 dateDiv.className = "date-btn";
                 dateDiv.id = "btn-" + dateString;
                 dateDiv.innerText = displayStr;
-                dateDiv.onclick = () => selectDate(dateString, displayStr);
+                
+                // Click triggers selection AND auto-scrolls that button to the top
+                dateDiv.onclick = () => selectDate(dateString, displayStr, true);
                 timeline.appendChild(dateDiv);
 
-                // Check if this loop is exactly today
-                if (i === 0) {
-                    todayId = "btn-" + dateString;
-                }
+                if (i === 0) todayId = "btn-" + dateString;
             }
 
-            // Auto-scroll to Today
+            // Lock Today at the exact top of the list on load
             if (todayId) {
-                let todayBtn = document.getElementById(todayId);
-                todayBtn.scrollIntoView({ behavior: "smooth", block: "center" });
-                todayBtn.click(); // Auto-select today's date
+                setTimeout(() => {
+                    document.getElementById(todayId).click();
+                }, 100);
             }
         }
 
-        // Handle Date Selection
-        function selectDate(dateString, displayStr) {
+        // 2. Select Date & Auto-Scroll logic
+        function selectDate(dateString, displayStr, scrollToTop = false) {
             activeDate = dateString;
             
-            // UI Updates
             document.querySelectorAll('.date-btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById("btn-" + dateString).classList.add('active');
+            let activeBtn = document.getElementById("btn-" + dateString);
+            activeBtn.classList.add('active');
+            
             document.getElementById("selected-date-display").innerText = displayStr;
             document.getElementById("entry-area").style.display = "block";
-            document.getElementById("daily-total-container").style.display = "block";
             
             renderItems();
+
+            if (scrollToTop) {
+                isClicking = true;
+                activeBtn.scrollIntoView({ behavior: "smooth", block: "start" });
+                // Prevent the scroll listener from firing while the smooth scroll happens
+                setTimeout(() => { isClicking = false; }, 500); 
+            }
         }
 
-        // Add Item
-        function addItem() {
-            if (!activeDate) return alert("Select a date first!");
+        // 3. Scroll Listener (Auto-selects date that hits the top)
+        document.getElementById("timeline-area").addEventListener("scroll", function() {
+            if (isClicking) return; // Don't auto-select if user just clicked
             
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(function() {
+                let timeline = document.getElementById("timeline-area");
+                let btns = document.getElementsByClassName("date-btn");
+                
+                for(let btn of btns) {
+                    if (btn.offsetTop >= timeline.scrollTop) {
+                        let dateStr = btn.id.replace("btn-", "");
+                        if (activeDate !== dateStr) {
+                            selectDate(dateStr, btn.innerText, false);
+                        }
+                        break;
+                    }
+                }
+            }, 100);
+        });
+
+        // 4. Enter Key Setup
+        function setupEnterKey() {
+            document.getElementById("item-name").addEventListener("keypress", function(e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    document.getElementById("item-price").focus();
+                }
+            });
+            document.getElementById("item-price").addEventListener("keypress", function(e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    addItem();
+                    document.getElementById("item-name").focus(); // return focus to name
+                }
+            });
+        }
+
+        // 5. Item Management
+        function addItem() {
+            if (!activeDate) return;
             let nameInput = document.getElementById("item-name");
             let priceInput = document.getElementById("item-price");
             let name = nameInput.value.trim();
             let price = parseFloat(priceInput.value);
 
-            if (name === "" || isNaN(price) || price <= 0) return alert("Enter valid item and amount.");
+            if (name === "" || isNaN(price) || price <= 0) return;
 
-            if (!ledgerData[activeDate]) {
-                ledgerData[activeDate] = [];
-            }
-
+            if (!ledgerData[activeDate]) ledgerData[activeDate] = [];
             ledgerData[activeDate].push({ name: name, price: price });
             
             nameInput.value = "";
             priceInput.value = "";
+            manualPayable = null; // Clear override if new items are added
 
             renderItems();
             updateDashboard();
         }
 
-        // Edit Item
-        function editItem(index) {
-            let item = ledgerData[activeDate][index];
-            let newName = prompt("Edit item name:", item.name);
-            
-            if (newName !== null && newName.trim() !== "") {
-                let newPrice = prompt("Edit price (₹):", item.price);
-                let parsedPrice = parseFloat(newPrice);
-                
-                if (!isNaN(parsedPrice) && parsedPrice >= 0) {
-                    ledgerData[activeDate][index] = { name: newName.trim(), price: parsedPrice };
-                    renderItems();
-                    updateDashboard();
-                } else {
-                    alert("Invalid price. Edit cancelled.");
-                }
+        function updateItemName(index, newName) {
+            if (newName.trim() !== "") {
+                ledgerData[activeDate][index].name = newName.trim();
             }
         }
 
-        // Delete Item
-        function deleteItem(index) {
-            if (confirm("Are you sure you want to delete this item?")) {
-                ledgerData[activeDate].splice(index, 1);
-                renderItems();
+        function updateItemPrice(index, newPrice) {
+            let parsed = parseFloat(newPrice);
+            if (!isNaN(parsed) && parsed >= 0) {
+                ledgerData[activeDate][index].price = parsed;
+                manualPayable = null; // Clear override
                 updateDashboard();
             }
         }
 
-        // Render Items
+        function deleteItem(index) {
+            ledgerData[activeDate].splice(index, 1);
+            manualPayable = null;
+            renderItems();
+            updateDashboard();
+        }
+
         function renderItems() {
             const list = document.getElementById("item-list");
             list.innerHTML = "";
-            let dailySum = 0;
 
             if (ledgerData[activeDate] && ledgerData[activeDate].length > 0) {
                 ledgerData[activeDate].forEach((item, index) => {
                     let li = document.createElement("li");
-                    
                     li.innerHTML = `
-                        <div class="item-info"><strong>${item.name}</strong> <br> ₹${item.price.toFixed(2)}</div>
-                        <div class="item-actions">
-                            <button class="action-btn" onclick="editItem(${index})">✏️</button>
-                            <button class="action-btn" onclick="deleteItem(${index})">🗑️</button>
+                        <div class="item-info">
+                            <input type="text" class="inline-input" value="${item.name}" onchange="updateItemName(${index}, this.value)">
+                            <div style="display:flex; align-items:center;">
+                                ₹<input type="number" class="inline-input inline-price" value="${item.price}" onchange="updateItemPrice(${index}, this.value)">
+                            </div>
                         </div>
+                        <button class="action-btn" onclick="deleteItem(${index})">🗑️</button>
                     `;
                     list.appendChild(li);
-                    dailySum += item.price;
                 });
             } else {
-                list.innerHTML = "<p style='text-align:center; color:#7f8c8d; margin-top:20px;'>No items logged for this date.</p>";
-            }
-
-            document.getElementById("daily-total").innerText = "₹" + dailySum.toFixed(2);
-        }
-
-        // Edit Total Paid (Clicking the amount directly)
-        function editTotalPaid() {
-            let input = prompt(`You have currently paid ₹${totalPaid.toFixed(2)}.\n\nTo ADD to this, type a number (e.g., 500).\nTo OVERWRITE the total, type '=' followed by the number (e.g., =1000).`);
-            
-            if (input !== null && input.trim() !== "") {
-                input = input.trim();
-                
-                if (input.startsWith('=')) {
-                    let newTotal = parseFloat(input.substring(1));
-                    if (!isNaN(newTotal) && newTotal >= 0) {
-                        totalPaid = newTotal;
-                    } else {
-                        alert("Invalid amount.");
-                    }
-                } else {
-                    let addAmount = parseFloat(input);
-                    if (!isNaN(addAmount) && addAmount > 0) {
-                        totalPaid += addAmount;
-                    } else {
-                        alert("Invalid amount.");
-                    }
-                }
-                updateDashboard();
+                list.innerHTML = "<p style='text-align:center; color:#7f8c8d; margin-top:20px;'>No items logged.</p>";
             }
         }
 
-        // Update Dashboard
+        // 6. Inline Dashboard Editing
+        function handleDashChange(field) {
+            if (field === 'payable') {
+                manualPayable = parseFloat(document.getElementById('payable-input').value) || 0;
+            } else if (field === 'paid') {
+                totalPaid = parseFloat(document.getElementById('paid-input').value) || 0;
+            } else if (field === 'remaining') {
+                let rem = parseFloat(document.getElementById('remaining-input').value) || 0;
+                let pay = parseFloat(document.getElementById('payable-input').value) || 0;
+                totalPaid = pay - rem; 
+            }
+            updateDashboard();
+        }
+
+        // 7. Core Math & Auto-Reset Logic
         function updateDashboard() {
             let grandTotal = 0;
-            
             for (let dateKey in ledgerData) {
-                ledgerData[dateKey].forEach(item => {
-                    grandTotal += item.price;
-                });
+                ledgerData[dateKey].forEach(item => { grandTotal += item.price; });
+            }
+            
+            // Calculate Active Payable (Total bought minus past settled debts)
+            let activePayable = (manualPayable !== null) ? manualPayable : (grandTotal - settledAmount);
+            if (activePayable < 0) activePayable = 0;
+            
+            // AUTO-SETTLE LOGIC: If you pay all (or more) of your debt
+            if (totalPaid >= activePayable && activePayable > 0) {
+                settledAmount += activePayable; // Save the history
+                totalPaid = totalPaid - activePayable; // Carry over any extra change
+                activePayable = 0;
+                manualPayable = null; 
+                alert("Account Settled! \nYour balance has been reset, but past entries are kept safely on their dates.");
             }
 
-            let remaining = grandTotal - totalPaid;
+            let remaining = activePayable - totalPaid;
 
-            document.getElementById("total-payable").innerText = "₹" + grandTotal.toFixed(2);
-            document.getElementById("amount-paid").innerText = "₹" + totalPaid.toFixed(2);
-            document.getElementById("remaining-balance").innerText = "₹" + remaining.toFixed(2);
+            // Update visible inputs
+            document.getElementById("payable-input").value = activePayable.toFixed(0);
+            document.getElementById("paid-input").value = totalPaid.toFixed(0);
+            document.getElementById("remaining-input").value = remaining.toFixed(0);
         }
     </script>
 </body>
