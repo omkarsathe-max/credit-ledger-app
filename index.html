@@ -101,10 +101,33 @@
         let isClicking = false;
 
         window.onload = function() {
+            loadData(); // Load saved data first
             generateTimeline(); 
             setupEnterKey();
             updateDashboard();
         };
+
+        // --- NEW: Save and Load Data ---
+        function saveData() {
+            const appState = {
+                ledgerData: ledgerData,
+                totalPaid: totalPaid,
+                settledAmount: settledAmount,
+                manualPayable: manualPayable
+            };
+            localStorage.setItem('myKhataAppData', JSON.stringify(appState));
+        }
+
+        function loadData() {
+            const saved = localStorage.getItem('myKhataAppData');
+            if (saved) {
+                const appState = JSON.parse(saved);
+                ledgerData = appState.ledgerData || {};
+                totalPaid = appState.totalPaid || 0;
+                settledAmount = appState.settledAmount || 0;
+                manualPayable = appState.manualPayable !== undefined ? appState.manualPayable : null;
+            }
+        }
 
         // 1. Generate Timeline (Past to Future)
         function generateTimeline() {
@@ -115,7 +138,6 @@
             
             let todayId = "";
 
-            // Start from 1 year ago (-365) down to 10 years in the future (3650)
             for (let i = -365; i <= 3650; i++) {
                 let d = new Date();
                 d.setDate(today.getDate() + i);
@@ -128,18 +150,15 @@
                 dateDiv.id = "btn-" + dateString;
                 dateDiv.innerText = displayStr;
                 
-                // Highlight today in yellow
                 if (i === 0) {
                     dateDiv.classList.add("today-highlight");
                     todayId = "btn-" + dateString;
                 }
                 
-                // Click triggers selection AND auto-scrolls that button to the top
                 dateDiv.onclick = () => selectDate(dateString, displayStr, true);
                 timeline.appendChild(dateDiv);
             }
 
-            // Auto-scroll Today to the very top on load
             if (todayId) {
                 setTimeout(() => {
                     document.getElementById(todayId).click();
@@ -147,7 +166,7 @@
             }
         }
 
-        // 2. Select Date & Auto-Scroll logic
+        // 2. Select Date
         function selectDate(dateString, displayStr, scrollToTop = false) {
             activeDate = dateString;
             
@@ -167,7 +186,7 @@
             }
         }
 
-        // 3. Scroll Listener (Auto-selects date that hits the top)
+        // 3. Scroll Listener
         document.getElementById("timeline-area").addEventListener("scroll", function() {
             if (isClicking) return; 
             
@@ -177,7 +196,6 @@
                 let btns = document.getElementsByClassName("date-btn");
                 
                 for(let btn of btns) {
-                    // Triggers when a button touches the top of the scrolling area
                     if (btn.offsetTop >= timeline.scrollTop - 10) { 
                         let dateStr = btn.id.replace("btn-", "");
                         if (activeDate !== dateStr) {
@@ -189,7 +207,7 @@
             }, 100);
         });
 
-        // 4. Enter Key Setup
+        // 4. Enter Key
         function setupEnterKey() {
             document.getElementById("item-name").addEventListener("keypress", function(e) {
                 if (e.key === "Enter") {
@@ -206,21 +224,20 @@
             });
         }
 
-        // 5. Item Management (Price is now optional)
+        // 5. Item Management
         function addItem() {
             if (!activeDate) return;
             let nameInput = document.getElementById("item-name");
             let priceInput = document.getElementById("item-price");
             let name = nameInput.value.trim();
             
-            // Allow empty price
             let price = 0;
             if (priceInput.value.trim() !== "") {
                 price = parseFloat(priceInput.value);
                 if (isNaN(price) || price < 0) price = 0;
             }
 
-            if (name === "") return; // Only name is required to save
+            if (name === "") return; 
 
             if (!ledgerData[activeDate]) ledgerData[activeDate] = [];
             ledgerData[activeDate].push({ name: name, price: price });
@@ -236,6 +253,7 @@
         function updateItemName(index, newName) {
             if (newName.trim() !== "") {
                 ledgerData[activeDate][index].name = newName.trim();
+                saveData(); // Save change
             }
         }
 
@@ -261,7 +279,6 @@
 
             if (ledgerData[activeDate] && ledgerData[activeDate].length > 0) {
                 ledgerData[activeDate].forEach((item, index) => {
-                    // Display blank in the price box if it's 0 so it's easy to type over later
                     let priceVal = item.price > 0 ? item.price : ''; 
                     
                     let li = document.createElement("li");
@@ -281,7 +298,7 @@
             }
         }
 
-        // 6. Inline Dashboard Editing
+        // 6. Dashboard Editing
         function handleDashChange(field) {
             if (field === 'payable') {
                 manualPayable = parseFloat(document.getElementById('payable-input').value) || 0;
@@ -295,7 +312,7 @@
             updateDashboard();
         }
 
-        // 7. Core Math & Auto-Reset Logic
+        // 7. Math & Save
         function updateDashboard() {
             let grandTotal = 0;
             for (let dateKey in ledgerData) {
@@ -318,6 +335,9 @@
             document.getElementById("payable-input").value = activePayable.toFixed(0);
             document.getElementById("paid-input").value = totalPaid.toFixed(0);
             document.getElementById("remaining-input").value = remaining.toFixed(0);
+
+            // SAVE EVERYTHING to memory after any calculation changes
+            saveData(); 
         }
     </script>
 </body>
