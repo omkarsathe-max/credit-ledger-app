@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Credit Ledger App</title>
+    <style>
+        * { box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background-color: #f4f4f9; }
+        
+        /* Dashboard Styling */
+        #dashboard { background-color: #2c3e50; color: white; padding: 15px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+        .balance-card { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; flex: 1; min-width: 100px; text-align: center; }
+        .balance-card span { display: block; font-size: 1.2em; font-weight: bold; margin-top: 5px; }
+        
+        /* Date Range Calculator */
+        #range-calc { width: 100%; background: #34495e; padding: 10px; border-radius: 5px; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+        #range-calc input, #range-calc button { padding: 5px; }
+        
+        /* Main Layout Layout */
+        #main-container { display: flex; flex: 1; overflow: hidden; }
+        
+        /* Left Side: Content & Entry */
+        #content-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        .input-group input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 15px; background-color: #27ae60; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #2ecc71; }
+        
+        /* Item List */
+        #item-list { list-style: none; padding: 0; margin: 0; flex: 1; overflow-y: auto; border-top: 1px solid #ddd; }
+        #item-list li { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; background: white; margin-bottom: 5px; border-radius: 4px; }
+        .daily-total-display { font-size: 1.2em; font-weight: bold; text-align: right; margin-top: 15px; padding-top: 10px; border-top: 2px solid #2c3e50; }
+        
+        /* Right Side: Vertical Timeline */
+        #timeline-area { width: 80px; background-color: #ecf0f1; border-left: 2px solid #bdc3c7; overflow-y: auto; display: flex; flex-direction: column; }
+        .date-btn { padding: 15px 5px; text-align: center; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 0.9em; transition: background 0.2s; }
+        .date-btn:hover, .date-btn.active { background-color: #3498db; color: white; font-weight: bold; }
+        
+        /* Payment Section */
+        #payment-section { display: flex; gap: 10px; margin-top: 10px; width: 100%; justify-content: center; }
+    </style>
+</head>
+<body>
+
+    <div id="dashboard">
+        <div class="balance-card">Total Payable: <span id="total-payable">₹0</span></div>
+        <div class="balance-card">Amount Paid: <span id="amount-paid">₹0</span></div>
+        <div class="balance-card">Remaining: <span id="remaining-balance">₹0</span></div>
+        
+        <div id="payment-section">
+            <input type="number" id="payment-input" placeholder="Enter payment amount" style="padding: 5px;">
+            <button onclick="makePayment()">Record Payment</button>
+        </div>
+
+        <div id="range-calc">
+            <span>Filter:</span>
+            <input type="date" id="start-date"> <span>to</span> <input type="date" id="end-date">
+            <button onclick="calculateRange()">Sum Range</button>
+            <div style="font-weight: bold;">Range Total: <span id="range-total">₹0</span></div>
+        </div>
+    </div>
+
+    <div id="main-container">
+        <div id="content-area">
+            <h2 id="selected-date-display">Select a Date</h2>
+            
+            <div id="entry-area" style="display: none;">
+                <div class="input-group">
+                    <input type="text" id="item-name" placeholder="What did you buy?">
+                    <input type="number" id="item-price" placeholder="Amount (₹)">
+                    <button onclick="addItem()">Add</button>
+                </div>
+            </div>
+
+            <ul id="item-list">
+                </ul>
+
+            <div id="daily-total-container" style="display: none;" class="daily-total-display">
+                Daily Total: <span id="daily-total">₹0</span>
+            </div>
+        </div>
+
+        <div id="timeline-area" id="date-list">
+            </div>
+    </div>
+
+    <script>
+        // Data Structure to hold transactions and total paid
+        let ledgerData = {}; // Format: { "2026-05-05": [{name: "Sugar", price: 50}, ... ] }
+        let totalPaid = 0;
+        let activeDate = null;
+
+        // Initialize App
+        window.onload = function() {
+            generateTimeline(30); // Generate timeline for the past 30 days
+            updateDashboard();
+        };
+
+        // Generate Dates for Timeline (Right Side)
+        function generateTimeline(daysBack) {
+            const timeline = document.getElementById("timeline-area");
+            timeline.innerHTML = "";
+            let today = new Date();
+            
+            for (let i = 0; i < daysBack; i++) {
+                let d = new Date(today);
+                d.setDate(today.getDate() - i);
+                let dateString = d.toISOString().split('T')[0]; // Format YYYY-MM-DD
+                
+                // Formatted display (e.g., 5 May)
+                let displayStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+                let dateDiv = document.createElement("div");
+                dateDiv.className = "date-btn";
+                dateDiv.id = "btn-" + dateString;
+                dateDiv.innerText = displayStr;
+                dateDiv.onclick = () => selectDate(dateString, displayStr);
+                timeline.appendChild(dateDiv);
+            }
+        }
+
+        // Handle Date Selection
+        function selectDate(dateString, displayStr) {
+            activeDate = dateString;
+            
+            // UI Updates
+            document.querySelectorAll('.date-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById("btn-" + dateString).classList.add('active');
+            document.getElementById("selected-date-display").innerText = "Transactions for " + displayStr;
+            document.getElementById("entry-area").style.display = "block";
+            document.getElementById("daily-total-container").style.display = "block";
+            
+            renderItems();
+        }
+
+        // Add a new item to the active date
+        function addItem() {
+            if (!activeDate) return alert("Please select a date from the right timeline first!");
+            
+            let nameInput = document.getElementById("item-name");
+            let priceInput = document.getElementById("item-price");
+            let name = nameInput.value.trim();
+            let price = parseFloat(priceInput.value);
+
+            if (name === "" || isNaN(price) || price <= 0) return alert("Enter valid item name and amount.");
+
+            if (!ledgerData[activeDate]) {
+                ledgerData[activeDate] = [];
+            }
+
+            ledgerData[activeDate].push({ name: name, price: price });
+            
+            // Clear inputs
+            nameInput.value = "";
+            priceInput.value = "";
+
+            renderItems();
+            updateDashboard();
+        }
+
+        // Render items for the selected date
+        function renderItems() {
+            const list = document.getElementById("item-list");
+            list.innerHTML = "";
+            let dailySum = 0;
+
+            if (ledgerData[activeDate]) {
+                ledgerData[activeDate].forEach((item, index) => {
+                    let li = document.createElement("li");
+                    li.innerHTML = `<span>${index + 1}. ${item.name}</span> <span>₹${item.price.toFixed(2)}</span>`;
+                    list.appendChild(li);
+                    dailySum += item.price;
+                });
+            }
+
+            document.getElementById("daily-total").innerText = "₹" + dailySum.toFixed(2);
+        }
+
+        // Record a bulk payment
+        function makePayment() {
+            let paymentInput = document.getElementById("payment-input");
+            let amount = parseFloat(paymentInput.value);
+            if (isNaN(amount) || amount <= 0) return alert("Enter a valid payment amount.");
+            
+            totalPaid += amount;
+            paymentInput.value = "";
+            updateDashboard();
+        }
+
+        // Calculate custom date range
+        function calculateRange() {
+            let start = document.getElementById("start-date").value;
+            let end = document.getElementById("end-date").value;
+            
+            if (!start || !end) return alert("Please select both start and end dates.");
+            
+            let rangeSum = 0;
+            let startDate = new Date(start);
+            let endDate = new Date(end);
+
+            for (let dateKey in ledgerData) {
+                let currentDate = new Date(dateKey);
+                if (currentDate >= startDate && currentDate <= endDate) {
+                    ledgerData[dateKey].forEach(item => {
+                        rangeSum += item.price;
+                    });
+                }
+            }
+            document.getElementById("range-total").innerText = "₹" + rangeSum.toFixed(2);
+        }
+
+        // Update Master Balances
+        function updateDashboard() {
+            let grandTotal = 0;
+            
+            for (let dateKey in ledgerData) {
+                ledgerData[dateKey].forEach(item => {
+                    grandTotal += item.price;
+                });
+            }
+
+            let remaining = grandTotal - totalPaid;
+
+            document.getElementById("total-payable").innerText = "₹" + grandTotal.toFixed(2);
+            document.getElementById("amount-paid").innerText = "₹" + totalPaid.toFixed(2);
+            document.getElementById("remaining-balance").innerText = "₹" + remaining.toFixed(2);
+        }
+    </script>
+</body>
+</html>
