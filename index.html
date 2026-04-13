@@ -15,6 +15,10 @@
         .date-btn { padding: 15px 5px; text-align: center; border-bottom: 1px solid #ccc; cursor: pointer; font-size: 0.85em; transition: background 0.2s; }
         .date-btn.active { background-color: #3498db; color: white; font-weight: bold; }
         
+        /* Highlight for Today's Date */
+        .today-highlight { background-color: #f1c40f !important; color: #000 !important; font-weight: bold; border-left: 5px solid #d35400; }
+        .today-highlight.active { background-color: #e67e22 !important; color: white !important; }
+
         /* RIGHT Side: Content & Entry */
         #content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         
@@ -59,7 +63,7 @@
                 <div id="entry-area" style="display: none;">
                     <div class="input-group">
                         <input type="text" id="item-name" placeholder="Item name">
-                        <input type="number" id="item-price" placeholder="Amount (₹)">
+                        <input type="number" id="item-price" placeholder="Amount (optional)">
                         <button onclick="addItem()">Add</button>
                     </div>
                 </div>
@@ -90,7 +94,7 @@
     <script>
         let ledgerData = {}; 
         let totalPaid = 0;
-        let settledAmount = 0; // Tracks past debts that were fully paid off
+        let settledAmount = 0; 
         let manualPayable = null; 
         let activeDate = null;
         let scrollTimer;
@@ -102,7 +106,7 @@
             updateDashboard();
         };
 
-        // 1. Generate Timeline (Future to Past)
+        // 1. Generate Timeline (Past to Future)
         function generateTimeline() {
             const timeline = document.getElementById("timeline-area");
             timeline.innerHTML = "";
@@ -111,8 +115,8 @@
             
             let todayId = "";
 
-            // 3650 days (10 yrs) future down to -365 days (1 yr) past
-            for (let i = 3650; i >= -365; i--) {
+            // Start from 1 year ago (-365) down to 10 years in the future (3650)
+            for (let i = -365; i <= 3650; i++) {
                 let d = new Date();
                 d.setDate(today.getDate() + i);
                 
@@ -124,14 +128,18 @@
                 dateDiv.id = "btn-" + dateString;
                 dateDiv.innerText = displayStr;
                 
+                // Highlight today in yellow
+                if (i === 0) {
+                    dateDiv.classList.add("today-highlight");
+                    todayId = "btn-" + dateString;
+                }
+                
                 // Click triggers selection AND auto-scrolls that button to the top
                 dateDiv.onclick = () => selectDate(dateString, displayStr, true);
                 timeline.appendChild(dateDiv);
-
-                if (i === 0) todayId = "btn-" + dateString;
             }
 
-            // Lock Today at the exact top of the list on load
+            // Auto-scroll Today to the very top on load
             if (todayId) {
                 setTimeout(() => {
                     document.getElementById(todayId).click();
@@ -155,14 +163,13 @@
             if (scrollToTop) {
                 isClicking = true;
                 activeBtn.scrollIntoView({ behavior: "smooth", block: "start" });
-                // Prevent the scroll listener from firing while the smooth scroll happens
                 setTimeout(() => { isClicking = false; }, 500); 
             }
         }
 
         // 3. Scroll Listener (Auto-selects date that hits the top)
         document.getElementById("timeline-area").addEventListener("scroll", function() {
-            if (isClicking) return; // Don't auto-select if user just clicked
+            if (isClicking) return; 
             
             clearTimeout(scrollTimer);
             scrollTimer = setTimeout(function() {
@@ -170,7 +177,8 @@
                 let btns = document.getElementsByClassName("date-btn");
                 
                 for(let btn of btns) {
-                    if (btn.offsetTop >= timeline.scrollTop) {
+                    // Triggers when a button touches the top of the scrolling area
+                    if (btn.offsetTop >= timeline.scrollTop - 10) { 
                         let dateStr = btn.id.replace("btn-", "");
                         if (activeDate !== dateStr) {
                             selectDate(dateStr, btn.innerText, false);
@@ -193,27 +201,33 @@
                 if (e.key === "Enter") {
                     e.preventDefault();
                     addItem();
-                    document.getElementById("item-name").focus(); // return focus to name
+                    document.getElementById("item-name").focus(); 
                 }
             });
         }
 
-        // 5. Item Management
+        // 5. Item Management (Price is now optional)
         function addItem() {
             if (!activeDate) return;
             let nameInput = document.getElementById("item-name");
             let priceInput = document.getElementById("item-price");
             let name = nameInput.value.trim();
-            let price = parseFloat(priceInput.value);
+            
+            // Allow empty price
+            let price = 0;
+            if (priceInput.value.trim() !== "") {
+                price = parseFloat(priceInput.value);
+                if (isNaN(price) || price < 0) price = 0;
+            }
 
-            if (name === "" || isNaN(price) || price <= 0) return;
+            if (name === "") return; // Only name is required to save
 
             if (!ledgerData[activeDate]) ledgerData[activeDate] = [];
             ledgerData[activeDate].push({ name: name, price: price });
             
             nameInput.value = "";
             priceInput.value = "";
-            manualPayable = null; // Clear override if new items are added
+            manualPayable = null; 
 
             renderItems();
             updateDashboard();
@@ -227,11 +241,11 @@
 
         function updateItemPrice(index, newPrice) {
             let parsed = parseFloat(newPrice);
-            if (!isNaN(parsed) && parsed >= 0) {
-                ledgerData[activeDate][index].price = parsed;
-                manualPayable = null; // Clear override
-                updateDashboard();
-            }
+            if (isNaN(parsed) || parsed < 0) parsed = 0; 
+            
+            ledgerData[activeDate][index].price = parsed;
+            manualPayable = null; 
+            updateDashboard();
         }
 
         function deleteItem(index) {
@@ -247,12 +261,15 @@
 
             if (ledgerData[activeDate] && ledgerData[activeDate].length > 0) {
                 ledgerData[activeDate].forEach((item, index) => {
+                    // Display blank in the price box if it's 0 so it's easy to type over later
+                    let priceVal = item.price > 0 ? item.price : ''; 
+                    
                     let li = document.createElement("li");
                     li.innerHTML = `
                         <div class="item-info">
                             <input type="text" class="inline-input" value="${item.name}" onchange="updateItemName(${index}, this.value)">
                             <div style="display:flex; align-items:center;">
-                                ₹<input type="number" class="inline-input inline-price" value="${item.price}" onchange="updateItemPrice(${index}, this.value)">
+                                ₹<input type="number" class="inline-input inline-price" placeholder="0" value="${priceVal}" onchange="updateItemPrice(${index}, this.value)">
                             </div>
                         </div>
                         <button class="action-btn" onclick="deleteItem(${index})">🗑️</button>
@@ -285,14 +302,12 @@
                 ledgerData[dateKey].forEach(item => { grandTotal += item.price; });
             }
             
-            // Calculate Active Payable (Total bought minus past settled debts)
             let activePayable = (manualPayable !== null) ? manualPayable : (grandTotal - settledAmount);
             if (activePayable < 0) activePayable = 0;
             
-            // AUTO-SETTLE LOGIC: If you pay all (or more) of your debt
             if (totalPaid >= activePayable && activePayable > 0) {
-                settledAmount += activePayable; // Save the history
-                totalPaid = totalPaid - activePayable; // Carry over any extra change
+                settledAmount += activePayable; 
+                totalPaid = totalPaid - activePayable; 
                 activePayable = 0;
                 manualPayable = null; 
                 alert("Account Settled! \nYour balance has been reset, but past entries are kept safely on their dates.");
@@ -300,7 +315,6 @@
 
             let remaining = activePayable - totalPaid;
 
-            // Update visible inputs
             document.getElementById("payable-input").value = activePayable.toFixed(0);
             document.getElementById("paid-input").value = totalPaid.toFixed(0);
             document.getElementById("remaining-input").value = remaining.toFixed(0);
